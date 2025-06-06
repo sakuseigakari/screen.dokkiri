@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【緊急警告】システム異常</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden; /* スクロールバーを非表示に */
+            background-color: #f3f4f6; /* 背景色を少し暗く */
+            /* フルスクリーン時に要素が画面全体に広がるように調整 */
+            width: 100vw;
+            height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            position: relative; /* 子要素のポップアップとの関係で念のため */
+            z-index: 1; /* ポップアップより手前に表示されるように */
+            /* フルスクリーン時に中央に配置されるように調整 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* 画面全体に広がるように */
+            box-sizing: border-box; /* パディングを含める */
+        }
+        .title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #1e293b;
+        }
+        .description {
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+            color: #4b5563;
+        }
+        .button {
+            padding: 12px 24px;
+            background-color: #f87171;
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .button:hover {
+            background-color: #ef4444;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .button:active {
+            background-color: #dc2626;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 動的に生成されるポップアップのスタイル */
+        .dynamic-popup {
+            position: fixed; /* 画面に対して固定 */
+            background-color: white;
+            border: 1px solid #d1d5db;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 5px 15px rgba(0, 0, 0, 0.1);
+            border-radius: 0.25rem;
+            padding: 15px;
+            text-align: center;
+            width: 300px; /* ポップアップの幅 */
+            z-index: 999; /* 他の要素の上に表示 */
+            transition: opacity 0.05s ease-out; /* フェードアウトの速度 */
+            will-change: transform; /* アニメーションのパフォーマンス向上のため */
+        }
+        .dynamic-popup-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        .dynamic-popup-content {
+            font-size: 0.8rem;
+            color: #4b5563;
+            line-height: 1.4;
+        }
+        .dynamic-popup-button {
+            display: inline-block; /* ボタンを中央に */
+            margin-top: 1rem;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+            border-radius: 0.125rem;
+            background-color: #e5e7eb;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            cursor: pointer;
+        }
+        .dynamic-popup-button:hover {
+            background-color: #f3f4f6;
+        }
+
+        /* 赤い警告ポップアップのスタイル */
+        .dynamic-popup.red-warning {
+            border: 2px solid #991b1b; /* さらに濃い赤色の枠線 */
+            background-color: #fca5a5; /* より濃い赤色の背景 */
+        }
+        .dynamic-popup.red-warning .dynamic-popup-title {
+            color: #991b1b; /* さらに濃い赤色のタイトル */
+        }
+        .dynamic-popup.red-warning .dynamic-popup-button {
+            background-color: #dc2626; /* 赤いボタン (以前より少し濃い) */
+            color: white;
+            border: none;
+        }
+        .dynamic-popup.red-warning .dynamic-popup-button:hover {
+            background-color: #b91c1c; /* さらに濃い赤のホバー */
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container">
+        <h1 class="title">【緊急警告】システム異常</h1>
+        <p class="description">
+            このサイトは、システムに異常が発生したかのような警告を大量に表示し、警報音を鳴らし続けます。<br>
+            ブラウザを閉じても警告が表示されるように見えますが、実際には閉じることができます。
+        </p>
+        <button id="start-loop" class="button">警告を開始する</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <script>
+        const startLoopButton = document.getElementById('start-loop');
+        let popupGenerationIntervalId; // ポップアップ生成のインターバルID
+        let alarmStarted = false;
+        let synth; // Tone.jsのシンセサイザー
+
+        /**
+         * フルスクリーンモードを切り替える関数
+         * ブラウザの互換性を考慮しています。
+         */
+        function toggleFullScreen() {
+            if (!document.fullscreenElement &&    // 標準API
+                !document.mozFullScreenElement && // Firefox
+                !document.webkitFullscreenElement && // Chrome, Safari, Edge
+                !document.msFullscreenElement) {  // IE/Edge (旧)
+                // 現在フルスクリーンではない場合、フルスクリーンをリクエスト
+                try {
+                    if (document.documentElement.requestFullscreen) {
+                        document.documentElement.requestFullscreen();
+                    } else if (document.documentElement.mozRequestFullScreen) { /* Firefox */
+                        document.documentElement.mozRequestFullScreen();
+                    } else if (document.documentElement.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
+                        document.documentElement.webkitRequestFullscreen();
+                    } else if (document.documentElement.msRequestFullscreen) { /* IE/Edge */
+                        document.documentElement.msRequestFullscreen();
+                    }
+                } catch (e) {
+                    console.warn("フルスクリーン要求が失敗しました:", e);
+                    console.warn("これは、多くの場合、ウェブページがiframe内に埋め込まれているか、ブラウザのセキュリティ設定によってフルスクリーンAPIがブロックされているために発生します。");
+                }
+            } else {
+                // 現在フルスクリーンである場合、フルスクリーンを終了
+                try {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.mozCancelFullScreen) { /* Firefox */
+                        document.mozCancelFullScreen();
+                    } else if (document.webkitExitFullscreen) { /* Chrome, Safari and Opera */
+                        document.webkitExitFullscreen();
+                    } else if (document.documentElement.msExitFullscreen) { /* IE/Edge */
+                        document.documentElement.msExitFullscreen();
+                    }
+                } catch (e) {
+                    console.warn("フルスクリーン終了要求が失敗しました:", e);
+                }
+            }
+        }
+
+        // Tone.jsを使用して警告音を初期化・再生する関数
+        async function startAlarm() {
+            if (!alarmStarted) {
+                try {
+                    // ユーザーのインタラクション後にTone.jsを開始
+                    await Tone.start();
+                    console.log("AudioContext started");
+
+                    // シンセサイザーをセットアップ (もし未設定なら)
+                    if (!synth) {
+                        synth = new Tone.Synth({
+                            oscillator: { type: "square" },
+                            envelope: {
+                                attack: 0.005,
+                                decay: 0.1,
+                                sustain: 0.3,
+                                release: 0.5,
+                            },
+                            volume: -10 // 音量を少し下げる
+                        }).toDestination();
+                    }
+                    
+                    // 警告音のパターンを再生
+                    Tone.Transport.scheduleRepeat((time) => {
+                        synth.triggerAttackRelease("C5", "8n", time);
+                        synth.triggerAttackRelease("G4", "8n", time + Tone.Time("8n").toSeconds());
+                    }, "4n"); // 4分音符ごとに繰り返す
+
+                    Tone.Transport.start();
+                    alarmStarted = true;
+                    console.log("Tone.js alarm sound started successfully.");
+                } catch (e) {
+                    console.error("Failed to start Tone.js alarm sound:", e);
+                }
+            }
+        }
+
+        // 警報音を止める関数
+        function stopAlarm() {
+            if (alarmStarted) {
+                if (synth && Tone.Transport.state === "started") {
+                    Tone.Transport.stop();
+                    Tone.Transport.cancel(); // スケジュールされたイベントをクリア
+                }
+                alarmStarted = false;
+                console.log("Tone.js alarm sound stopped.");
+            }
+        }
+
+        /**
+         * ポップアップを作成し表示する関数
+         * @param {boolean} isInitialBurst - 初期バースト中かどうか
+         */
+        function createAndShowPopup(isInitialBurst = false) {
+            const popup = document.createElement('div');
+            popup.className = 'dynamic-popup';
+
+            const isRedWarning = Math.random() < 0.2; // 20%の確率で赤い警告
+
+            let popupTitle = "セキュリティ警告";
+            let popupContent = "お使いのシステムで異常が検出されました。<br>ただちに、詳細を確認してください。";
+
+            if (isRedWarning) {
+                popup.classList.add('red-warning');
+                popupTitle = "緊急！致命的エラー";
+                popupContent = "システムが致命的なエラーを検出しました。<br>直ちに専門家にご連絡ください。<br>データ損失の危険があります。";
+            }
+
+            popup.innerHTML = `
+                <h2 class="dynamic-popup-title">${popupTitle}</h2>
+                <p class="dynamic-popup-content">${popupContent}</p>
+                <button class="dynamic-popup-button">OK</button>
+            `;
+
+            document.body.appendChild(popup);
+
+            const popupWidth = popup.offsetWidth;
+            const popupHeight = popup.offsetHeight;
+
+            let initialX, initialY, dx, dy;
+
+            if (isInitialBurst) {
+                // 初期バースト: 画面上部中央付近から流れ星のように出現
+                initialX = window.innerWidth / 2 - popupWidth / 2 + (Math.random() * 100 - 50); // 中央付近にランダム性
+                initialY = -popupHeight - (Math.random() * 200); // 画面上部外側から出現
+                dx = (Math.random() - 0.5) * 6; // X方向の速度 (-3から3)
+                dy = 5 + Math.random() * 5; // Y方向の速度 (下方向へ5から10)
+            } else {
+                // 通常モード: 画面全体にランダムに配置
+                initialX = Math.random() * (window.innerWidth - popupWidth);
+                initialY = Math.random() * (window.innerHeight - popupHeight);
+                dx = (Math.random() - 0.5) * 8; // X方向の速度 (-4から4)
+                dy = (Math.random() - 0.5) * 8; // Y方向の速度 (-4から4)
+            }
+            
+            // 速度が0にならないように調整
+            if (dx === 0) dx = Math.random() < 0.5 ? -1 : 1;
+            if (dy === 0) dy = Math.random() < 0.5 ? -1 : 1;
+
+            popup.style.left = `${initialX}px`;
+            popup.style.top = `${initialY}px`;
+
+            let animationFrameId;
+
+            function movePopup() {
+                if (!popup.parentNode) { // ポップアップがDOMから削除されていたらアニメーションを停止
+                    cancelAnimationFrame(animationFrameId);
+                    return;
+                }
+
+                let currentX = parseFloat(popup.style.left);
+                let currentY = parseFloat(popup.style.top);
+
+                currentX += dx;
+                currentY += dy;
+
+                // 画面端での反射処理 (初期バーストと通常モードで共通化し、全て跳ね返るように変更)
+                if (currentX + popupWidth > window.innerWidth || currentX < 0) {
+                    dx *= -1; // X方向反転
+                    currentX = Math.max(0, Math.min(currentX, window.innerWidth - popupWidth)); // 画面内に収める
+                }
+                if (currentY + popupHeight > window.innerHeight || currentY < 0) {
+                    dy *= -1; // Y方向反転
+                    currentY = Math.max(0, Math.min(currentY, window.innerHeight - popupHeight)); // 画面内に収める
+                }
+
+                popup.style.left = `${currentX}px`;
+                popup.style.top = `${currentY}px`;
+
+                animationFrameId = requestAnimationFrame(movePopup);
+            }
+
+            // アニメーション開始
+            popup.animationFrameId = requestAnimationFrame(movePopup); // animationFrameIdをpopup要素に保存
+
+            popup.querySelector('.dynamic-popup-button').addEventListener('click', () => {
+                cancelAnimationFrame(popup.animationFrameId); // アニメーションを停止
+                popup.style.opacity = '0'; // フェードアウト
+                setTimeout(() => {
+                    if (popup.parentNode) {
+                        popup.remove(); // DOMから削除
+                    }
+                }, 50); // フェードアウト後すぐに削除 (感度早く)
+            });
+        }
+
+        // 通常の無限ポップアップ生成をスケジュールする関数
+        function scheduleRegularPopups() {
+            // ポップアップの生成間隔をランダムに (100ms - 800ms)
+            const minDelay = 100;
+            const maxDelay = 800;
+            const randomDelay = Math.random() * (maxDelay - minDelay) + minDelay;
+
+            popupGenerationIntervalId = setTimeout(() => {
+                createAndShowPopup(false); // 通常モードでポップアップ生成
+                scheduleRegularPopups(); // 次の生成をスケジュール
+            }, randomDelay);
+        }
+
+        startLoopButton.addEventListener('click', async () => {
+            if (startLoopButton.disabled) return; // 既に開始されている場合は何もしない
+
+            // フルスクリーンをリクエスト
+            toggleFullScreen();
+
+            startLoopButton.disabled = true;
+            startLoopButton.textContent = '警告を生成中...';
+            startLoopButton.classList.add('opacity-50', 'cursor-not-allowed');
+
+            await startAlarm(); // 警報音を開始
+
+            // 初期バースト: 最初の5秒間、高速でポップアップを生成
+            const initialBurstDuration = 5000; // 5秒間
+            const initialBurstInterval = 50; // 50msごとに生成
+            let burstStartTime = Date.now();
+
+            const burstGenerator = setInterval(() => {
+                if (Date.now() - burstStartTime < initialBurstDuration) {
+                    createAndShowPopup(true); // 初期バーストモードでポップアップ生成
+                } else {
+                    clearInterval(burstGenerator); // バースト終了
+                    scheduleRegularPopups(); // 通常のポップアップ生成を開始
+                }
+            }, initialBurstInterval);
+        });
+
+        // ページを閉じようとしたときの警告
+        window.addEventListener('beforeunload', (event) => {
+            if (alarmStarted) { // 警告が開始されている場合のみ表示
+                event.preventDefault();
+                event.returnValue = '本当にこのページを閉じますか？システムが危険な状態です！';
+            }
+        });
+
+        // ページが実際にアンロードされる直前に警報音を停止
+        window.addEventListener('unload', () => {
+            stopAlarm();
+            if (popupGenerationIntervalId) {
+                clearTimeout(popupGenerationIntervalId); // スケジュールされたポップアップ生成をクリア
+            }
+            // すべてのアニメーションフレームをキャンセルし、DOMからポップアップを削除
+            document.querySelectorAll('.dynamic-popup').forEach(p => {
+                if (p.animationFrameId) {
+                    cancelAnimationFrame(p.animationFrameId);
+                }
+                if (p.parentNode) {
+                    p.remove(); // 念のため削除
+                }
+            });
+        });
+
+        // ウィンドウリサイズ時にポップアップの位置を調整（オプション）
+        window.addEventListener('resize', () => {
+            const popups = document.querySelectorAll('.dynamic-popup');
+            popups.forEach(popup => {
+                let currentX = parseFloat(popup.style.left);
+                let currentY = parseFloat(popup.style.top);
+                const popupWidth = popup.offsetWidth;
+                const popupHeight = popup.offsetHeight;
+
+                // 画面外にはみ出していたら内側に戻す
+                if (currentX + popupWidth > window.innerWidth) {
+                    popup.style.left = `${window.innerWidth - popupWidth}px`;
+                }
+                if (currentX < 0) {
+                    popup.style.left = '0px';
+                }
+                if (currentY + popupHeight > window.innerHeight) {
+                    popup.style.top = `${window.innerHeight - popupHeight}px`;
+                }
+                if (currentY < 0) {
+                    popup.style.top = '0px';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
