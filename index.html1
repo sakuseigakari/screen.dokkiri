@@ -15,8 +15,8 @@
             overflow: hidden; /* スクロールバーを非表示に */
             background-color: #f3f4f6; /* 背景色を少し暗く */
             /* フルスクリーン時のレイアウト調整と、absoluteポジショニングの基準となるように設定 */
-            width: 100vw;
-            height: 100vh;
+            width: 100vw; /* 画面全体に広げる */
+            height: 100vh; /* 画面全体に広げる */
             position: relative; /* dynamic-popupのposition:absoluteの基準となるように追加 */
         }
         .container {
@@ -77,7 +77,7 @@
             width: 300px; /* ポップアップの幅 */
             z-index: 999; /* 他の要素の上に表示 */
             opacity: 1; /* 初期状態では完全に表示を保証 */
-            transition: opacity 0.05s ease-out; /* フェードアウトの速度 */
+            transition: opacity 0.05s ease-out; /* フェードアウトの速度 (ユーザー提供の速度) */
             will-change: transform, opacity; /* アニメーションのパフォーマンス向上のため */
         }
         .dynamic-popup-title {
@@ -153,6 +153,7 @@
                 !document.msFullscreenElement) {  // IE/Edge (旧)
                 // 現在フルスクリーンではない場合、フルスクリーンをリクエスト
                 try {
+                    // console.log("フルスクリーンをリクエストしています..."); // DEBUG: ログを追加
                     if (document.documentElement.requestFullscreen) {
                         document.documentElement.requestFullscreen();
                     } else if (document.documentElement.mozRequestFullScreen) { /* Firefox */
@@ -163,12 +164,13 @@
                         document.documentElement.msRequestFullscreen();
                     }
                 } catch (e) {
-                    console.warn("フルスクリーン要求が失敗しました:", e);
-                    console.warn("これは、多くの場合、ウェブページがiframe内に埋め込まれているか、ブラウザのセキュリティ設定によってフルスクリーンAPIがブロックされているために発生します。");
+                    // console.warn("フルスクリーン要求が失敗しました:", e); // DEBUG: ログを追加
+                    // console.warn("これは、多くの場合、ウェブページがiframe内に埋め込まれているか、ブラウザのセキュリティ設定によってフルスクリーンAPIがブロックされているために発生します。"); // DEBUG: ログを追加
                 }
             } else {
                 // 現在フルスクリーンである場合、フルスクリーンを終了
                 try {
+                    // console.log("フルスクリーンを終了しています..."); // DEBUG: ログを追加
                     if (document.exitFullscreen) {
                         document.exitFullscreen();
                     } else if (document.mozCancelFullScreen) { /* Firefox */
@@ -179,7 +181,7 @@
                         document.documentElement.msExitFullscreen();
                     }
                 } catch (e) {
-                    console.warn("フルスクリーン終了要求が失敗しました:", e);
+                    // console.warn("フルスクリーン終了要求が失敗しました:", e); // DEBUG: ログを追加
                 }
             }
         }
@@ -190,7 +192,7 @@
                 try {
                     // ユーザーのインタラクション後にTone.jsを開始
                     await Tone.start();
-                    console.log("AudioContext started");
+                    // console.log("AudioContext started"); // DEBUG: ログを削除
 
                     // シンセサイザーをセットアップ (もし未設定なら)
                     if (!synth) {
@@ -214,9 +216,9 @@
 
                     Tone.Transport.start();
                     alarmStarted = true;
-                    console.log("Tone.js alarm sound started successfully.");
+                    // console.log("Tone.js alarm sound started successfully."); // DEBUG: ログを削除
                 } catch (e) {
-                    console.error("Failed to start Tone.js alarm sound:", e);
+                    // console.error("Failed to start Tone.js alarm sound:", e); // DEBUG: ログを削除
                 }
             }
         }
@@ -229,7 +231,7 @@
                     Tone.Transport.cancel(); // スケジュールされたイベントをクリア
                 }
                 alarmStarted = false;
-                console.log("Tone.js alarm sound stopped.");
+                // console.log("Tone.js alarm sound stopped."); // DEBUG: ログを削除
             }
         }
 
@@ -260,8 +262,7 @@
 
             document.body.appendChild(popup);
 
-            // ポップアップがDOMに追加され、レンダリングされてからサイズを取得するため、
-            // requestAnimationFrameでラップして正確な位置計算を行う
+            // requestAnimationFrame でラップして、要素のサイズが確定してから位置を計算
             requestAnimationFrame(() => {
                 const popupWidth = popup.offsetWidth;
                 const popupHeight = popup.offsetHeight;
@@ -304,7 +305,6 @@
                     currentY += dy;
 
                     // 画面端での反射処理 (初期バーストと通常モードで共通化し、全て跳ね返るように変更)
-                    // window.innerWidth/Height を使用 (iframe内ではiframeのサイズになる)
                     if (currentX + popupWidth > window.innerWidth || currentX < 0) {
                         dx *= -1; // X方向反転
                         currentX = Math.max(0, Math.min(currentX, window.innerWidth - popupWidth)); // 画面内に収める
@@ -324,6 +324,7 @@
                 popup.animationFrameId = requestAnimationFrame(movePopup); // animationFrameIdをpopup要素に保存
             });
 
+            // 自動削除タイマーはユーザー提供のHTMLに従い50ms
             popup.querySelector('.dynamic-popup-button').addEventListener('click', () => {
                 cancelAnimationFrame(popup.animationFrameId); // アニメーションを停止
                 popup.style.opacity = '0'; // フェードアウト
@@ -331,13 +332,13 @@
                     if (popup.parentNode) {
                         popup.remove(); // DOMから削除
                     }
-                }, 50); // フェードアウト後すぐに削除 (感度早く)
+                }, 50); // フェードアウト後すぐに削除 (ユーザー提供の速度)
             });
         }
 
         // 通常の無限ポップアップ生成をスケジュールする関数
         function scheduleRegularPopups() {
-            // ポップアップの生成間隔をランダムに (100ms - 800ms)
+            // ポップアップの生成間隔をランダムに (100ms - 800ms) (ユーザー提供の速度)
             const minDelay = 100;
             const maxDelay = 800;
             const randomDelay = Math.random() * (maxDelay - minDelay) + minDelay;
@@ -362,7 +363,7 @@
 
             // 初期バースト: 最初の5秒間、高速でポップアップを生成
             const initialBurstDuration = 5000; // 5秒間
-            const initialBurstInterval = 50; // 50msごとに生成
+            const initialBurstInterval = 50; // 50msごとに生成 (ユーザー提供の速度)
             let burstStartTime = Date.now();
 
             const burstGenerator = setInterval(() => {
@@ -427,4 +428,3 @@
     </script>
 </body>
 </html>
-
