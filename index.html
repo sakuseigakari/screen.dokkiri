@@ -14,9 +14,10 @@
             margin: 0;
             overflow: hidden; /* スクロールバーを非表示に */
             background-color: #f3f4f6; /* 背景色を少し暗く */
-            /* フルスクリーン時に要素が画面全体に広がるように調整 */
+            /* フルスクリーン時のレイアウト調整と、absoluteポジショニングの基準となるように設定 */
             width: 100vw;
             height: 100vh;
+            position: relative; /* dynamic-popupのposition:absoluteの基準となるように追加 */
         }
         .container {
             max-width: 800px;
@@ -66,7 +67,7 @@
 
         /* 動的に生成されるポップアップのスタイル */
         .dynamic-popup {
-            position: fixed; /* 画面に対して固定 */
+            position: absolute; /* 親要素（body）に対して絶対位置指定 */
             background-color: white;
             border: 1px solid #d1d5db;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 5px 15px rgba(0, 0, 0, 0.1);
@@ -75,8 +76,9 @@
             text-align: center;
             width: 300px; /* ポップアップの幅 */
             z-index: 999; /* 他の要素の上に表示 */
+            opacity: 1; /* 初期状態では完全に表示を保証 */
             transition: opacity 0.05s ease-out; /* フェードアウトの速度 */
-            will-change: transform; /* アニメーションのパフォーマンス向上のため */
+            will-change: transform, opacity; /* アニメーションのパフォーマンス向上のため */
         }
         .dynamic-popup-title {
             font-size: 1rem;
@@ -258,64 +260,69 @@
 
             document.body.appendChild(popup);
 
-            const popupWidth = popup.offsetWidth;
-            const popupHeight = popup.offsetHeight;
+            // ポップアップがDOMに追加され、レンダリングされてからサイズを取得するため、
+            // requestAnimationFrameでラップして正確な位置計算を行う
+            requestAnimationFrame(() => {
+                const popupWidth = popup.offsetWidth;
+                const popupHeight = popup.offsetHeight;
 
-            let initialX, initialY, dx, dy;
+                let initialX, initialY, dx, dy;
 
-            if (isInitialBurst) {
-                // 初期バースト: 画面上部中央付近から流れ星のように出現
-                initialX = window.innerWidth / 2 - popupWidth / 2 + (Math.random() * 100 - 50); // 中央付近にランダム性
-                initialY = -popupHeight - (Math.random() * 200); // 画面上部外側から出現
-                dx = (Math.random() - 0.5) * 6; // X方向の速度 (-3から3)
-                dy = 5 + Math.random() * 5; // Y方向の速度 (下方向へ5から10)
-            } else {
-                // 通常モード: 画面全体にランダムに配置
-                initialX = Math.random() * (window.innerWidth - popupWidth);
-                initialY = Math.random() * (window.innerHeight - popupHeight);
-                dx = (Math.random() - 0.5) * 8; // X方向の速度 (-4から4)
-                dy = (Math.random() - 0.5) * 8; // Y方向の速度 (-4から4)
-            }
-            
-            // 速度が0にならないように調整
-            if (dx === 0) dx = Math.random() < 0.5 ? -1 : 1;
-            if (dy === 0) dy = Math.random() < 0.5 ? -1 : 1;
+                if (isInitialBurst) {
+                    // 初期バースト: 画面上部中央付近から流れ星のように出現
+                    initialX = window.innerWidth / 2 - popupWidth / 2 + (Math.random() * 100 - 50); // 中央付近にランダム性
+                    initialY = -popupHeight - (Math.random() * 200); // 画面上部外側から出現
+                    dx = (Math.random() - 0.5) * 6; // X方向の速度 (-3から3)
+                    dy = 5 + Math.random() * 5; // Y方向の速度 (下方向へ5から10)
+                } else {
+                    // 通常モード: 画面全体にランダムに配置
+                    initialX = Math.random() * (window.innerWidth - popupWidth);
+                    initialY = Math.random() * (window.innerHeight - popupHeight);
+                    dx = (Math.random() - 0.5) * 8; // X方向の速度 (-4から4)
+                    dy = (Math.random() - 0.5) * 8; // Y方向の速度 (-4から4)
+                }
+                
+                // 速度が0にならないように調整
+                if (dx === 0) dx = Math.random() < 0.5 ? -1 : 1;
+                if (dy === 0) dy = Math.random() < 0.5 ? -1 : 1;
 
-            popup.style.left = `${initialX}px`;
-            popup.style.top = `${initialY}px`;
+                popup.style.left = `${initialX}px`;
+                popup.style.top = `${initialY}px`;
 
-            let animationFrameId;
+                let animationFrameId;
 
-            function movePopup() {
-                if (!popup.parentNode) { // ポップアップがDOMから削除されていたらアニメーションを停止
-                    cancelAnimationFrame(animationFrameId);
-                    return;
+                function movePopup() {
+                    if (!popup.parentNode) { // ポップアップがDOMから削除されていたらアニメーションを停止
+                        cancelAnimationFrame(animationFrameId);
+                        return;
+                    }
+
+                    let currentX = parseFloat(popup.style.left);
+                    let currentY = parseFloat(popup.style.top);
+
+                    currentX += dx;
+                    currentY += dy;
+
+                    // 画面端での反射処理 (初期バーストと通常モードで共通化し、全て跳ね返るように変更)
+                    // window.innerWidth/Height を使用 (iframe内ではiframeのサイズになる)
+                    if (currentX + popupWidth > window.innerWidth || currentX < 0) {
+                        dx *= -1; // X方向反転
+                        currentX = Math.max(0, Math.min(currentX, window.innerWidth - popupWidth)); // 画面内に収める
+                    }
+                    if (currentY + popupHeight > window.innerHeight || currentY < 0) {
+                        dy *= -1; // Y方向反転
+                        currentY = Math.max(0, Math.min(currentY, window.innerHeight - popupHeight)); // 画面内に収める
+                    }
+
+                    popup.style.left = `${currentX}px`;
+                    popup.style.top = `${currentY}px`;
+
+                    animationFrameId = requestAnimationFrame(movePopup);
                 }
 
-                let currentX = parseFloat(popup.style.left);
-                let currentY = parseFloat(popup.style.top);
-
-                currentX += dx;
-                currentY += dy;
-
-                // 画面端での反射処理 (初期バーストと通常モードで共通化し、全て跳ね返るように変更)
-                if (currentX + popupWidth > window.innerWidth || currentX < 0) {
-                    dx *= -1; // X方向反転
-                    currentX = Math.max(0, Math.min(currentX, window.innerWidth - popupWidth)); // 画面内に収める
-                }
-                if (currentY + popupHeight > window.innerHeight || currentY < 0) {
-                    dy *= -1; // Y方向反転
-                    currentY = Math.max(0, Math.min(currentY, window.innerHeight - popupHeight)); // 画面内に収める
-                }
-
-                popup.style.left = `${currentX}px`;
-                popup.style.top = `${currentY}px`;
-
-                animationFrameId = requestAnimationFrame(movePopup);
-            }
-
-            // アニメーション開始
-            popup.animationFrameId = requestAnimationFrame(movePopup); // animationFrameIdをpopup要素に保存
+                // アニメーション開始
+                popup.animationFrameId = requestAnimationFrame(movePopup); // animationFrameIdをpopup要素に保存
+            });
 
             popup.querySelector('.dynamic-popup-button').addEventListener('click', () => {
                 cancelAnimationFrame(popup.animationFrameId); // アニメーションを停止
@@ -420,3 +427,4 @@
     </script>
 </body>
 </html>
+
